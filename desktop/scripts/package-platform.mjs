@@ -15,7 +15,12 @@ if (target === null) {
 
 const builder = process.platform === 'win32' ? 'electron-builder.cmd' : 'electron-builder'
 console.log(`package-platform: electron-builder --${target}`)
-const child = spawn(builder, [`--${target}`], { stdio: 'inherit' })
+const child = spawn(builder, [`--${target}`], {
+  stdio: 'inherit',
+  // Node cannot execute `.cmd` shims directly on Windows; `shell: true`
+  // re-parses the command through cmd.exe.
+  shell: process.platform === 'win32',
+})
 child.once('error', error => {
   console.error(`package-platform: failed to spawn ${builder}: ${error.message}`)
   process.exit(1)

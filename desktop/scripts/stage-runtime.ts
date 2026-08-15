@@ -46,10 +46,13 @@ async function run(label: string, command: string, args: string[]): Promise<void
   const printable = formatCommand(command, args)
   console.log(`stage-runtime: ${label}: ${printable}`)
   await new Promise<void>((resolvePromise, reject) => {
+    // Node cannot execute `.cmd` shims directly on Windows; `shell: true`
+    // re-parses the quoted command through cmd.exe (see pnpmBin()).
     const child = spawn(command, args, {
       cwd: repositoryRoot,
       stdio: 'inherit',
       env: { ...process.env, CI: 'true' },
+      shell: process.platform === 'win32',
     })
     child.once('error', (error) => {
       reject(new Error(`stage-runtime: ${label} failed to spawn: ${error.message} (${printable})`))

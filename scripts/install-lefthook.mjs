@@ -14,7 +14,6 @@ import {
 } from 'node:fs'
 import { spawnSync } from 'node:child_process'
 import { dirname, isAbsolute, join, resolve } from 'node:path'
-import lefthookPackage from 'lefthook/package.json' with { type: 'json' }
 
 const MINIMUM_GIT = [2, 26, 0]
 const HOOKS_DIRECTORY = 'dsh-hooks'
@@ -690,7 +689,14 @@ function probePairingMergeDriver(root) {
 
 async function main() {
   if (process.env.CI === 'true' || process.env.GITHUB_ACTIONS === 'true') return
-  if (typeof lefthookPackage.bin?.lefthook !== 'string') return
+  let lefthookPackage
+  try {
+    lefthookPackage = await import('lefthook/package.json', { with: { type: 'json' } })
+  } catch {
+    // lefthook is a devDependency; under a production install it is absent.
+    return
+  }
+  if (typeof lefthookPackage.default?.bin?.lefthook !== 'string') return
   const probe = spawnSync('git', ['rev-parse', '--show-toplevel'], { encoding: 'utf8' })
   if (probe.status !== 0) return
   const root = stripGitLineTerminator(probe.stdout)
