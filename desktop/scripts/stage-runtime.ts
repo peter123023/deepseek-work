@@ -13,7 +13,7 @@
 
 import { spawn } from 'node:child_process'
 import { existsSync } from 'node:fs'
-import { cp, lstat, mkdir, readdir, readFile, realpath, rm } from 'node:fs/promises'
+import { cp, lstat, mkdir, readdir, readFile, realpath, rm, writeFile } from 'node:fs/promises'
 import { dirname, join, resolve, sep } from 'node:path'
 
 const desktopRoot = resolve(import.meta.dirname, '..')
@@ -68,11 +68,24 @@ async function run(label: string, command: string, args: string[]): Promise<void
   })
 }
 
+/**
+ * `pnpm deploy --config.node-linker=hoisted` writes the hoisted linker into the
+ * workspace's `.pnpm-workspace-state-v1.json`, which makes every later
+ * `pnpm run` (whose default `verify-deps-before-run=install` sees the workspace
+ * state out of sync with the installed layout) reinstall with `--production` and
+ * drop devDependencies. Snapshot and restore that file around the deploy so the
+ * hoisted layout stays confined to the staging dir.
+ */
+const workspaceStatePath = join(repositoryRoot, 'node_modules', '.pnpm-workspace-state-v1.json')
+
 /** Clear and deploy the runtime closure into the staging directory. */
 async function deployStaging(): Promise<void> {
   if (staging === repositoryRoot || repositoryRoot.startsWith(staging + sep)) {
     throw new Error(`stage-runtime: refusing to clear staging dir ${staging}: it contains the repo root.`)
   }
+  const workspaceStateBefore = existsSync(workspaceStatePath)
+    ? await readFile(workspaceStatePath)
+    : undefined
   await rm(staging, { recursive: true, force: true })
   await run('deploy', pnpmBin(), [
     '--config.verify-deps-before-run=false',
@@ -87,6 +100,9 @@ async function deployStaging(): Promise<void> {
     '--config.link-workspace-packages=true',
     staging,
   ])
+  if (workspaceStateBefore !== undefined) {
+    await writeFile(workspaceStatePath, workspaceStateBefore)
+  }
 }
 
 /**
