@@ -115,14 +115,14 @@ async function deployStaging(): Promise<void> {
  * hoisted instance.
  */
 async function copyResolved(source: string, destination: string): Promise<void> {
-  const metadata = await lstat(source)
-  if (metadata.isSymbolicLink()) {
+  if (await isLink(source)) {
     // A link at the copy root points somewhere else entirely; resolve and copy
     // the target rather than re-creating the link.
     const target = await realpath(source)
     await copyResolved(target, destination)
     return
   }
+  const metadata = await lstat(source)
   if (!metadata.isDirectory()) {
     await mkdir(dirname(destination), { recursive: true })
     await copyFile(source, destination)
@@ -133,7 +133,7 @@ async function copyResolved(source: string, destination: string): Promise<void> 
     const childSource = join(source, entry.name)
     const childDestination = join(destination, entry.name)
     if (entry.name === 'node_modules') continue
-    if (entry.isSymbolicLink()) {
+    if (await isLink(childSource)) {
       const target = await realpath(childSource)
       const targetMetadata = await stat(target)
       if (targetMetadata.isDirectory()) {
@@ -194,12 +194,24 @@ async function materializeLinks(): Promise<void> {
   }
 }
 
-/** Return the first symbolic link below a directory, if one exists. */
+/**
+ * Return true when `path` is a symbolic link or a Windows junction. Both are
+ * filesystem links that `lstat` reports differently across platforms (junctions
+ * are directories, not symlinks, on Windows), so neither `isSymbolicLink()`
+ * alone is reliable. `realpath` resolves both kinds to their target, so a path
+ * whose resolved form differs from its own is a link.
+ */
+async function isLink(path: string): Promise<boolean> {
+  const resolved = await realpath(path)
+  return resolve(resolved) !== resolve(path)
+}
+
+/** Return the first filesystem link below a directory, if one exists. */
 async function findSymlink(directory: string): Promise<string | undefined> {
   for (const entry of await readdir(directory, { withFileTypes: true })) {
     const path = join(directory, entry.name)
+    if (await isLink(path)) return path
     const metadata = await lstat(path)
-    if (metadata.isSymbolicLink()) return path
     if (metadata.isDirectory()) {
       const nested = await findSymlink(path)
       if (nested !== undefined) return nested
