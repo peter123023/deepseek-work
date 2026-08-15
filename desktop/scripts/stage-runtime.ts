@@ -13,7 +13,7 @@
 
 import { spawn } from 'node:child_process'
 import { existsSync } from 'node:fs'
-import { cp, lstat, mkdir, readdir, readFile, realpath, rm, writeFile } from 'node:fs/promises'
+import { copyFile, lstat, mkdir, readdir, readFile, realpath, rm, stat, writeFile } from 'node:fs/promises'
 import { dirname, join, resolve, sep } from 'node:path'
 
 const desktopRoot = resolve(import.meta.dirname, '..')
@@ -106,6 +106,54 @@ async function deployStaging(): Promise<void> {
 }
 
 /**
+ * Copy `source` into `destination`, following every symbolic link and Windows
+ * junction explicitly. `fs.cp`'s `dereference` option does not follow junctions
+ * on Windows, so pnpm's workspace links (junctions on Windows, symlinks on
+ * macOS/Linux) would survive as dangling links that electron-builder re-creates
+ * verbatim. Recursing with `lstat`/`realpath` materializes the target bytes on
+ * every platform. Nested `node_modules` trees are skipped to preserve one flat
+ * hoisted instance.
+ */
+async function copyResolved(source: string, destination: string): Promise<void> {
+  const metadata = await lstat(source)
+  if (metadata.isSymbolicLink()) {
+    // A link at the copy root points somewhere else entirely; resolve and copy
+    // the target rather than re-creating the link.
+    const target = await realpath(source)
+    await copyResolved(target, destination)
+    return
+  }
+  if (!metadata.isDirectory()) {
+    await mkdir(dirname(destination), { recursive: true })
+    await copyFile(source, destination)
+    return
+  }
+  await mkdir(destination, { recursive: true })
+  for (const entry of await readdir(source, { withFileTypes: true })) {
+    const childSource = join(source, entry.name)
+    const childDestination = join(destination, entry.name)
+    if (entry.name === 'node_modules') continue
+    if (entry.isSymbolicLink()) {
+      const target = await realpath(childSource)
+      const targetMetadata = await stat(target)
+      if (targetMetadata.isDirectory()) {
+        await copyResolved(target, childDestination)
+      } else {
+        await mkdir(dirname(childDestination), { recursive: true })
+        await copyFile(target, childDestination)
+      }
+      continue
+    }
+    if (entry.isDirectory()) {
+      await copyResolved(childSource, childDestination)
+    } else {
+      await mkdir(dirname(childDestination), { recursive: true })
+      await copyFile(childSource, childDestination)
+    }
+  }
+}
+
+/**
  * Restore direct dependencies pnpm's legacy hoister places beside the deploy
  * source instead of in the target.
  */
@@ -123,12 +171,7 @@ async function restoreLegacyHoists(): Promise<void> {
       throw new Error(`stage-runtime: deployed dependency ${dependency} is absent from both ${destination} and ${source}.`)
     }
     await mkdir(dirname(destination), { recursive: true })
-    const nestedNodeModules = join(source, 'node_modules')
-    await cp(source, destination, {
-      recursive: true,
-      dereference: true,
-      filter: path => path !== nestedNodeModules && !path.startsWith(nestedNodeModules + sep),
-    })
+    await copyResolved(source, destination)
   }
 }
 
@@ -145,13 +188,8 @@ async function materializeLinks(): Promise<void> {
       continue
     }
     const source = await realpath(remaining)
-    const nestedNodeModules = join(source, 'node_modules')
     await rm(remaining, { recursive: true, force: true })
-    await cp(source, remaining, {
-      recursive: true,
-      dereference: true,
-      filter: path => path !== nestedNodeModules && !path.startsWith(nestedNodeModules + sep),
-    })
+    await copyResolved(source, remaining)
     remaining = await findSymlink(nodeModules)
   }
 }
