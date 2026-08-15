@@ -7,6 +7,11 @@ packages:
   - native/landlock-run/packages/*
   # Product assemblies over the package tier; apps/cli owns the `dsh` bin.
   - apps/*
+  # The desktop shell is an installable-product assembly, not an npm package:
+  # it sits beside native/ so workspace-constraints does not treat it as a
+  # release member (apps/* and packages/*/* are), while desktop/runtime is the
+  # pure dependency manifest its packaging materializes.
+  - desktop
   - website
   # The runnable demo leaves join as ONE workspace member: examples/package.json
   # declares the union of every leaf's cordis.yml plugins as workspace:*, so a
@@ -19,6 +24,11 @@ packages:
   # Deploy root of the single-exe build: a pure dependency manifest whose
   # closure is what the exe bundles and what the Python runtime distributes.
   - python/sdk-runtime
+  # Deploy root of the desktop shell: a pure dependency manifest whose closure
+  # (the dsh CLI bin + the web bundle) is what stage-runtime materializes into
+  # desktop/runtime-host/. Nested so it stays outside app build and
+  # release-family scans.
+  - desktop/runtime
 
 # Vendored framework packages keep their upstream semver ranges, while local
 # builds must resolve those matching names to this workspace's pinned sources.
@@ -42,6 +52,12 @@ allowBuilds:
   lefthook: true
   # Cross-platform boundary for the persistent PTY backend, including ConPTY on Windows.
   node-pty: true
+  # Desktop shell: electron downloads its platform binary on install, and
+  # electron-builder runs native packaging steps.
+  electron: true
+  electron-builder: true
+  # electron-builder's Windows NSIS/portable installer producer.
+  electron-winstaller: true
   # Pulled in by @earendil-works/pi-ai (optional LLM API backend). pnpm lists
   # them only because they ship lifecycle scripts, but those are no-ops we don't
   # need, so we deny them — install still succeeds.

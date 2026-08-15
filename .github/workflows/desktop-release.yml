@@ -1,0 +1,102 @@
+name: Build desktop
+
+# Desktop shell installers. macOS and Windows packaging each run on their native
+# runner because electron-builder cannot cross-build signed installers; see
+# .agents/notes/proposed/feature/2026-08-15-desktop-electron-shell.md.
+# Runs on tag push (release), manual dispatch, or a PR labelled `build-desktop`
+# (remove and reapply to rerun). Checkout uses the triggering ref, so dispatch
+# needs no separate ref input.
+on:
+  push:
+    tags:
+      - 'v*'
+  workflow_dispatch:
+  pull_request:
+    types: [labeled]
+
+concurrency:
+  group: build-desktop-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: write
+
+env:
+  # CI runs must never report to the production telemetry endpoint baked
+  # into apps/cli/cordis.yml (AppCLIEntry disables the row when set).
+  DSH_TELEMETRY_DISABLED: '1'
+
+jobs:
+  build:
+    name: ${{ matrix.target }}
+    # Tag and dispatch runs always build; PR runs require the label.
+    if: github.event_name == 'push' || github.event_name == 'workflow_dispatch' || github.event.label.name == 'build-desktop'
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 45
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - target: macos-arm64
+            runner: macos-latest
+          - target: windows-x64
+            runner: windows-latest
+    steps:
+      - uses: actions/checkout@v6
+
+      - uses: pnpm/action-setup@v4
+
+      # setup-node's built-in pnpm store cache keys on platform AND arch.
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 24
+          cache: pnpm
+
+      - name: Install (immutable)
+        run: pnpm install --frozen-lockfile
+
+      - name: Build workspace
+        run: pnpm run build
+
+      - name: Stage runtime and package
+        run: pnpm --filter @deepseek-ai/dsh-desktop run package:platform
+        env:
+          # electron-builder picks the target from the matrix below via the
+          # script's per-OS branch; the env is informational for logs.
+          DSH_DESKTOP_TARGET: ${{ matrix.target }}
+
+      - name: Collect artifacts
+        id: collect
+        shell: bash
+        run: |
+          set -euo pipefail
+          case "$RUNNER_OS" in
+            macOS) glob='desktop/dist/*.dmg desktop/dist/*.zip' ;;
+            Windows) glob='desktop/dist/*.exe' ;;
+            *) echo "::error::Unexpected runner OS $RUNNER_OS"; exit 1 ;;
+          esac
+          # shellcheck disable=SC2086
+          files=$(ls $glob 2>/dev/null || true)
+          [ -n "$files" ] || { echo "::error::No installer artifacts found matching $glob"; exit 1; }
+          echo "files<<EOF" >> "$GITHUB_OUTPUT"
+          echo "$files" >> "$GITHUB_OUTPUT"
+          echo "EOF" >> "$GITHUB_OUTPUT"
+
+      - uses: actions/upload-artifact@v7
+        with:
+          name: desktop-${{ matrix.target }}
+          path: |
+            desktop/dist/*.dmg
+            desktop/dist/*.zip
+            desktop/dist/*.exe
+          if-no-files-found: error
+          retention-days: 7
+
+      - name: Upload to release
+        if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v')
+        uses: softprops/action-gh-release@v2
+        with:
+          files: |
+            desktop/dist/*.dmg
+            desktop/dist/*.zip
+            desktop/dist/*.exe

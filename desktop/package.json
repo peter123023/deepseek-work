@@ -1,0 +1,77 @@
+{
+  "name": "@deepseek-ai/dsh-desktop",
+  "description": "DeepSeek Harness desktop application with tray-owned Host lifecycle",
+  "version": "0.1.0-rc.5",
+  "private": true,
+  "type": "module",
+  "main": "lib/main/index.js",
+  "license": "MIT",
+  "scripts": {
+    "build": "tsc -p tsconfig.json && tsdown",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "dev": "node scripts/ensure-electron.mjs && electron .",
+    "stage-runtime": "tsx scripts/stage-runtime.ts",
+    "ensure-electron": "node scripts/ensure-electron.mjs",
+    "pack:mac": "node scripts/ensure-electron.mjs && electron-builder --mac",
+    "pack:win": "node scripts/ensure-electron.mjs && electron-builder --win",
+    "pack": "node scripts/ensure-electron.mjs && electron-builder",
+    "package:platform": "node scripts/ensure-electron.mjs && node scripts/package-platform.mjs"
+  },
+  "devDependencies": {
+    "@types/node": "^22.20.0",
+    "electron": "43.4.0",
+    "electron-builder": "26.15.3",
+    "tsdown": "^0.22.2",
+    "tsx": "^4.22.4",
+    "typescript": "^6.0.3",
+    "vitest": "^4.1.8"
+  },
+  "build": {
+    "appId": "ai.deepseek.harness.desktop",
+    "productName": "DeepSeek Work",
+    "electronDist": "node_modules/electron/dist",
+    "afterPack": "./scripts/verify-packaged-runtime.ts",
+    "npmRebuild": false,
+    "npmArgs": ["--ignore-scripts", "--config.confirm-modules-purge=false"],
+    "asar": true,
+    "files": [
+      "lib/**",
+      "package.json",
+      "build/**"
+    ],
+    "extraResources": [
+      {
+        "from": "resources",
+        "to": "desktop-resources"
+      },
+      {
+        "from": "runtime-host/package.json",
+        "to": "host/package.json"
+      },
+      {
+        "from": "runtime-host/node_modules",
+        "to": "host/node_modules"
+      }
+    ],
+    "mac": {
+      "category": "public.app-category.developer-tools",
+      "hardenedRuntime": true,
+      "icon": "build/icon.icns",
+      "target": [
+        "dmg",
+        "zip"
+      ]
+    },
+    "win": {
+      "icon": "build/icon.png",
+      "target": [
+        "nsis",
+        "portable"
+      ]
+    },
+    "nsis": {
+      "oneClick": false,
+      "allowToChangeInstallationDirectory": true
+    }
+  }
+}
