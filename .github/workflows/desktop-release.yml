@@ -58,6 +58,9 @@ jobs:
       - name: Build workspace
         run: pnpm run build
 
+      - name: Build desktop shell
+        run: pnpm --filter @deepseek-ai/dsh-desktop run build
+
       - name: Stage runtime and package
         run: |
           pnpm --config.verify-deps-before-run=false --filter @deepseek-ai/dsh-desktop run stage-runtime
