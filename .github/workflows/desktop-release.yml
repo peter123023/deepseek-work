@@ -59,7 +59,9 @@ jobs:
         run: pnpm run build
 
       - name: Stage runtime and package
-        run: pnpm --filter @deepseek-ai/dsh-desktop run package:platform
+        run: |
+          pnpm --filter @deepseek-ai/dsh-desktop run stage-runtime
+          pnpm --filter @deepseek-ai/dsh-desktop run package:platform
         env:
           # electron-builder picks the target from the matrix below via the
           # script's per-OS branch; the env is informational for logs.
