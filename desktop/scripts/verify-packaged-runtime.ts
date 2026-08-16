@@ -1,9 +1,11 @@
 /**
  * electron-builder `afterPack` hook: verify the packaged app carries a complete
  * Host closure before the installer is produced. The hook receives the
- * after-pack context; `appOutDir` is the packaged `.app`/unpacked directory
- * whose `Contents/Resources` (macOS) or root (Windows) holds the `extraResources`
- * `host/` payload.
+ * after-pack context; `appOutDir` is the packaged `.app`/unpacked directory.
+ * On macOS the `extraResources` `host/` payload lands in the named `.app`
+ * bundle's `Contents/Resources`; on Windows electron-builder places it under
+ * the unpacked app's `resources/` directory (its `getResourcesDir` returns
+ * `appOutDir/resources` for Electron frameworks).
  */
 
 import { existsSync, readdirSync } from 'node:fs'
@@ -24,7 +26,7 @@ interface AfterPackContext {
 export default function verifyPackagedRuntime(context: AfterPackContext): void {
   const resourcesRoot = context.electronPlatformName === 'darwin'
     ? macResourcesRoot(context.appOutDir)
-    : context.appOutDir
+    : join(context.appOutDir, 'resources')
   for (const entry of REQUIRED) {
     const full = join(resourcesRoot, entry)
     if (!existsSync(full)) {

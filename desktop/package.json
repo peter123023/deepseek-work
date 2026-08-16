@@ -66,7 +66,7 @@
       "icon": "build/icon.png",
       "target": [
         "nsis",
-        "portable"
+        "zip"
       ]
     },
     "nsis": {

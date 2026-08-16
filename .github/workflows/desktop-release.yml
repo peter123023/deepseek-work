@@ -77,7 +77,7 @@ jobs:
           set -euo pipefail
           case "$RUNNER_OS" in
             macOS) glob='desktop/dist/*.dmg desktop/dist/*.zip' ;;
-            Windows) glob='desktop/dist/*.exe' ;;
+            Windows) glob='desktop/dist/*.exe desktop/dist/*.zip' ;;
             *) echo "::error::Unexpected runner OS $RUNNER_OS"; exit 1 ;;
           esac
           # shellcheck disable=SC2086
