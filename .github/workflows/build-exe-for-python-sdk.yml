@@ -35,8 +35,6 @@ on:
         type: string
         required: false
         default: ''
-  pull_request:
-    types: [labeled]
 
 concurrency:
   # Keep the called workflow distinct from its caller's concurrency group;
