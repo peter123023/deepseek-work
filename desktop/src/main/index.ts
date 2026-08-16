@@ -13,6 +13,11 @@ import { HostSupervisor } from './host-supervisor.ts'
 import { createTray } from './tray.ts'
 import { showWindow } from './window-lifecycle.ts'
 
+// Make the renderer's `navigator.language` follow the OS language instead of
+// Chromium's `en-US` default, so a fresh install with no saved locale matches
+// the user's system language (e.g. `zh-CN` → `zh`). Must run before ready.
+app.commandLine.appendSwitch('lang', app.getLocale())
+
 let supervisor: HostSupervisor | null = null
 let tray: Tray | null = null
 let hostOrigin: string | null = null

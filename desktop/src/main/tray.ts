@@ -28,13 +28,13 @@ export function createTray(
 ): Tray {
   const icon = trayIcon()
   const tray = new Tray(icon)
-  tray.setToolTip('DeepSeek Harness')
+  tray.setToolTip('DeepSeek Work')
 
   const rebuild = (): void => {
     const state = getHostState()
     const hostLabel = state.status === 'ready' ? 'Host running' : state.status === 'failed' ? 'Host failed' : 'Host starting'
     tray.setContextMenu(Menu.buildFromTemplate([
-      { label: 'Open DeepSeek Harness', click: onShowWindow },
+      { label: 'Open DeepSeek Work', click: onShowWindow },
       { label: hostLabel, enabled: false },
       ...(state.status === 'failed'
         ? [{ label: 'Restart Host', click: onRestartHost }]
