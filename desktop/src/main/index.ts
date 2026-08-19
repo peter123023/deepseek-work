@@ -16,7 +16,25 @@ import { showWindow } from './window-lifecycle.ts'
 // Make the renderer's `navigator.language` follow the OS language instead of
 // Chromium's `en-US` default, so a fresh install with no saved locale matches
 // the user's system language (e.g. `zh-CN` → `zh`). Must run before ready.
-app.commandLine.appendSwitch('lang', app.getLocale())
+//
+// `app.getLocale()` is unusable here: the trimmed Electron distribution ships
+// no `locales/*.pak`, so Chromium cannot resolve the OS language and returns
+// `en-US` (or an empty tag), which would pin the UI to English. Read the OS
+// language list directly instead — `getPreferredSystemLanguages()` consults
+// the platform APIs and works without the locale packs — then normalise it to
+// the two-part `language-region` shape Chromium's `--lang` switch accepts
+// (a three-part `zh-Hans-CN` tag is rejected and falls back to `en-US`).
+app.commandLine.appendSwitch('lang', resolveOsLanguage())
+
+/** Resolve a Chromium `--lang` tag from the OS preferred languages. */
+function resolveOsLanguage(): string {
+  const [primary] = app.getPreferredSystemLanguages()
+  const fallback = app.getLocale()
+  if (primary === undefined || primary === '') return fallback || 'en-US'
+  const parts = primary.split('-')
+  // Drop the script subtag, keeping `language-region` (e.g. `zh-Hans-CN` → `zh-CN`).
+  return parts.length > 2 ? `${parts[0]}-${parts[parts.length - 1]}`.toLowerCase() : primary.toLowerCase()
+}
 
 let supervisor: HostSupervisor | null = null
 let tray: Tray | null = null

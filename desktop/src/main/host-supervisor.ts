@@ -12,7 +12,10 @@
  */
 
 import { spawn, type ChildProcess } from 'node:child_process'
+import { existsSync } from 'node:fs'
+import { delimiter, dirname, join } from 'node:path'
 import type { HostFailure, HostState } from '../shared/contracts.ts'
+import { ensureFeaturedPlugins, ensureMarketLink } from './ensure-featured-plugins.ts'
 
 /** The port the Host binds by default; overridable via DSH_HOST_PORT for tests. */
 const DEFAULT_PORT = 3080
@@ -46,6 +49,38 @@ export class HostSupervisor {
     private readonly port: number = DEFAULT_PORT,
   ) {}
 
+  /**
+   * Locate the staged pnpm standalone binary, if present.
+   *
+   * The closure is laid out as `<host>/node_modules/...` with `dshBin` at
+   * `<host>/node_modules/@deepseek-ai/dsh/lib/bin.js`; the pnpm standalone is
+   * staged beside it at `<host>/node_modules/.pnpm-bin/pnpm` (see
+   * `scripts/stage-pnpm.ts`). Returns the executable's directory so it can be
+   * prepended to the Host child's `PATH`, or `null` when pnpm was not staged.
+   */
+  /**
+   * The staged closure's `node_modules` root, derived from `dshBin`.
+   *
+   * `dshBin` sits at `<closure>/node_modules/@deepseek-ai/dsh/lib/bin.js`; the
+   * package is scoped, so reaching `node_modules` requires climbing four levels
+   * (bin.js → lib → dsh → @deepseek-ai → node_modules), not three.
+   */
+  private nodeModulesDir(): string {
+    return dirname(dirname(dirname(dirname(this.dshBin))))
+  }
+
+  private pnpmBinDir(): string | null {
+    const binDir = join(this.nodeModulesDir(), '.pnpm-bin')
+    const executable = process.platform === 'win32' ? 'pnpm.exe' : 'pnpm'
+    const executablePath = join(binDir, executable)
+    return existsSync(executablePath) ? binDir : null
+  }
+
+  /** The staged market package directory, beside the dsh bin in the closure. */
+  private marketDir(): string {
+    return join(this.nodeModulesDir(), 'dsh-featured-plugins')
+  }
+
   /** Subscribe to Host state changes; returns a disposer. */
   onState(listener: HostStateListener): () => void {
     this.listeners.add(listener)
@@ -61,15 +96,34 @@ export class HostSupervisor {
 
   /** Start the child and begin readiness polling. */
   start(): void {
+    // Register the bundled market on first launch so the Host composes it from
+    // the staged installation; a no-op once present. Safe to run before the
+    // harness initialises the profile — it defers until the manifest exists.
+    try {
+      ensureFeaturedPlugins()
+      // The market is a desktop-runtime dependency, so the harness's own
+      // module-fallback heal never links it; link it into the profile fallback
+      // dir explicitly so the loader can resolve it from `profiles/web/`.
+      ensureMarketLink(process.env.DSH_HOME ?? this.defaultHome(), this.marketDir())
+    } catch {
+      // A malformed profile manifest must not block Host startup; the Host's
+      // own loader diagnostics are the authoritative failure surface.
+    }
+
     // `--expose-internals` lets the Host's HMR service reach Node's internal ESM
     // loader. The `node-addon-require-builtin` fallback does not load under
     // Electron's Node (native-ABI mismatch), so the flag is required, not a
     // development convenience.
+    const pnpmDir = this.pnpmBinDir()
+    const path = pnpmDir !== null
+      ? `${pnpmDir}${process.env.PATH !== undefined ? delimiter : ''}${process.env.PATH ?? ''}`
+      : process.env.PATH
     const child = spawn(process.execPath, ['--expose-internals', this.dshBin, 'web', '--port', String(this.port)], {
       env: {
         ...process.env,
         ELECTRON_RUN_AS_NODE: '1',
         DSH_HOME: process.env.DSH_HOME ?? this.defaultHome(),
+        PATH: path,
       },
       stdio: ['ignore', 'pipe', 'pipe'],
     })

@@ -15,6 +15,7 @@ import { spawn } from 'node:child_process'
 import { existsSync } from 'node:fs'
 import { copyFile, lstat, mkdir, readdir, readFile, realpath, rm, stat, writeFile } from 'node:fs/promises'
 import { dirname, join, resolve, sep } from 'node:path'
+import { stagePnpm } from './stage-pnpm.ts'
 
 const desktopRoot = resolve(import.meta.dirname, '..')
 const repositoryRoot = resolve(desktopRoot, '..')
@@ -234,5 +235,6 @@ function verifyEntries(): void {
 await deployStaging()
 await restoreLegacyHoists()
 await materializeLinks()
+await stagePnpm()
 verifyEntries()
 console.log(`stage-runtime: materialized ${deployPackage} closure into ${staging}`)
