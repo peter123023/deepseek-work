@@ -1022,8 +1022,8 @@ importers:
         specifier: link:../../vendor/schemastery
         version: link:../../vendor/schemastery
       dsh-featured-plugins:
-        specifier: ^0.1.0
-        version: 0.1.1(@deepseek-ai/cordis@vendor+cordis)
+        specifier: ^0.1.2
+        version: 0.1.2(@deepseek-ai/cordis@vendor+cordis)
 
   examples:
     dependencies:
@@ -13331,8 +13331,8 @@ packages:
     resolution: {integrity: sha512-uBq4egWHTcTt33a72vpSG0z3HnPuIl6NqYcTrKEg2azoEyl2hpW0zqlxysq2pK9HlDIHyHyakeYaYnSAwd8bow==}
     engines: {node: '>=12'}
 
-  dsh-featured-plugins@0.1.1:
-    resolution: {integrity: sha512-YRC5sFhAISYRP1F+12SfiTpWWymj8+1G7i8lfww9jXPN+aOZGxMX0uUIbXQ0jAJXnTdPmJZ4UUZ2zFj+box5LQ==}
+  dsh-featured-plugins@0.1.2:
+    resolution: {integrity: sha512-lhrn6Uafx3yWVSmwDtIDWjw4K+kGJm8Hc5D+ybNliVJfXViCTE71RC+hiYyL3jeLyu74771OJ82OtfKALYJh0w==}
     peerDependencies:
       '@deepseek-ai/cordis': ^4.0.1
 
@@ -19335,7 +19335,7 @@ snapshots:
 
   dotenv@16.6.1: {}
 
-  dsh-featured-plugins@0.1.1(@deepseek-ai/cordis@vendor+cordis):
+  dsh-featured-plugins@0.1.2(@deepseek-ai/cordis@vendor+cordis):
     dependencies:
       '@deepseek-ai/cordis': link:vendor/cordis
       js-yaml: 4.2.0
